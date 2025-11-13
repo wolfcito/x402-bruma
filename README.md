@@ -1,36 +1,47 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# x402 Bruma — Simulador de Informe Crediticio
 
-## Getting Started
+Demo de Next.js que muestra cómo proteger APIs con x402 en Avalanche/Avalanche Fuji usando el facilitador de Ultraviolet. La app expone un resumen crediticio gratuito y un informe completo simulado (JSON) que cuesta $0.01 en USDC. Incluye manejo explícito para rechazos de la wallet y un paywall basado únicamente en `/api/premium`.
 
-First, run the development server:
+## Requisitos
+
+- Node.js 20+
+- pnpm
+- Wallet EVM inyectada en el navegador (MetaMask, Rabby, etc.) con USDC/USDC.e en la red elegida
+- Variables de entorno en `.env.local`:
+  ```bash
+  NEXT_PUBLIC_EVM_RECEIVER_ADDRESS=0xYourReceiver
+  NEXT_PUBLIC_FACILITATOR_URL=https://facilitator.yourdomain.xyz
+  # Opcional: NEXT_PUBLIC_DEFAULT_NETWORK=avalanche-fuji
+  ```
+
+## Comandos
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install      # instala dependencias
+pnpm dev          # inicia el servidor en http://localhost:3000
+pnpm build && pnpm start  # build + producción local
+pnpm lint         # Biome
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Qué incluye
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- `/api/free`: snapshot gratuito con banda de score estimada, porcentaje de utilización y notas.
+- `/api/premium`: informe JSON completo (score, cuentas, alertas) servido tras cubrir la tarifa en la red seleccionada.
+- `app/page.tsx`: selector de red, botones en negro aptos para dark/light theme y mensajes específicos si se cancela la firma (`Cancelaste la solicitud en la wallet. Nada fue cobrado.`).
+- `proxy.ts`: middleware único que cachea las redes soportadas vía `/supported`, fija los contratos USDC (Fuji/Mainnet) y sólo intercepta `/api/premium`.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Flujo de pago
 
-## Learn More
+1. La UI cliente utiliza `wrapFetchWithPayment` (paquete `x402-fetch`) para transformar el `fetch` de `/api/premium` en un flujo 402 → wallet → retry.
+2. Cuando se consulta `/api/premium?network=avalanche-fuji` sin pagar:
+   ```bash
+   curl -i "http://localhost:3000/api/premium?network=avalanche-fuji"
+   ```
+   se recibe `HTTP/1.1 402 Payment Required` con cabeceras `x-402-*`.
+3. Tras firmar/pagar en la wallet, el helper reintenta y obtiene `200 OK` con el JSON del informe.
 
-To learn more about Next.js, take a look at the following resources:
+## Personalizar / extender
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Agrega rutas premium nuevas creando `app/<ruta>/route.ts` y registrándolas en `routesFor` dentro de `proxy.ts`.
+- Ajusta precios/activos en `ERC20_PRICE_ASSETS` si deseas usar otro contrato o monto.
+- Para ocultar o mostrar mensajes adicionales en la UI, edita los handlers `handleFreePromptClick` / `handlePremiumPromptClick`.
