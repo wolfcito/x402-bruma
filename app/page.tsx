@@ -1,20 +1,11 @@
 "use client";
 
+import { useAppKit } from "@reown/appkit/react";
 import { useState } from "react";
-import {
-  type Address,
-  createWalletClient,
-  custom,
-  UserRejectedRequestError,
-} from "viem";
+import { UserRejectedRequestError } from "viem";
 import { avalanche, avalancheFuji } from "viem/chains";
+import { useAccount, useWalletClient } from "wagmi";
 import { type Signer, wrapFetchWithPayment } from "x402-fetch";
-
-type Eip1193Provider = {
-  request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
-};
-
-type WindowWithEthereum = Window & { ethereum?: Eip1193Provider };
 
 const NETWORKS = {
   "avalanche-fuji": {
@@ -42,20 +33,15 @@ const fetchJson = async <T = unknown>(
   return (await res.json()) as T;
 };
 
-const getEthereumProvider = (): Eip1193Provider => {
-  const provider = (window as WindowWithEthereum).ethereum;
-  if (!provider) {
-    throw new Error("Conecta una wallet compatible con Avalanche.");
-  }
-  return provider;
-};
-
 export default function Home() {
   const [selectedNetwork, setSelectedNetwork] =
     useState<NetworkKey>("avalanche-fuji");
   const [report, setReport] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<LoadingState>(null);
+  const { isConnected } = useAccount();
+  const { data: walletClient } = useWalletClient();
+  const { open } = useAppKit();
 
   const handleFreePromptClick = async () => {
     try {
@@ -81,20 +67,18 @@ export default function Home() {
       setError(null);
       setReport(null);
 
-      const ethereum = getEthereumProvider();
-      const [address] = (await ethereum.request({
-        method: "eth_requestAccounts",
-      })) as Address[];
-
-      if (!address) {
-        throw new Error("No recibimos ninguna cuenta de la wallet.");
+      if (!walletClient) {
+        open?.();
+        throw new Error("Conecta una wallet compatible con Avalanche.");
       }
 
-      const walletClient = createWalletClient({
-        account: address,
-        chain: NETWORKS[selectedNetwork].chain,
-        transport: custom(ethereum),
-      });
+      const requiredChain = NETWORKS[selectedNetwork].chain;
+
+      if (walletClient.chain?.id !== requiredChain.id) {
+        throw new Error(
+          `Selecciona la red ${requiredChain.name} en tu wallet antes de pagar.`,
+        );
+      }
 
       const fetchWithPayment = wrapFetchWithPayment(
         fetch,
@@ -174,6 +158,13 @@ export default function Home() {
             </option>
           ))}
         </select>
+        <button
+          type="button"
+          onClick={() => open?.()}
+          className="rounded border px-3 py-2 text-xs font-semibold uppercase tracking-wide"
+        >
+          {isConnected ? "Cambiar wallet" : "Conectar wallet"}
+        </button>
       </div>
 
       <ul className="space-y-4">
