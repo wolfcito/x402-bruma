@@ -1,4 +1,8 @@
-import { avalanche, avalancheFuji } from "@reown/appkit/networks";
+import {
+  type AppKitNetwork,
+  avalanche,
+  avalancheFuji,
+} from "@reown/appkit/networks";
 import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
 import { cookieStorage, createStorage } from "wagmi";
 
@@ -11,7 +15,10 @@ if (!projectId) {
   throw new Error("NEXT_PUBLIC_PROJECT_ID is required for Reown AppKit.");
 }
 
-export const networks = [avalanche, avalancheFuji];
+export const networks: [AppKitNetwork, ...AppKitNetwork[]] = [
+  avalanche,
+  avalancheFuji,
+];
 
 export const wagmiAdapter = new WagmiAdapter({
   storage: createStorage({
@@ -20,5 +27,4 @@ export const wagmiAdapter = new WagmiAdapter({
   ssr: true,
   projectId,
   networks,
-  defaultNetwork: avalanche,
 });
